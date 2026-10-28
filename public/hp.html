@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLICO Hire Purchase Analysis</title>
+<style>
+  :root {
+    --bg: #f4f6f9; --card: #ffffff; --text: #1d2733; --muted: #6b7785; --line: #e3e8ee;
+    --hp: #4f6bed; --amber: #e9a23b; --up: #1a8f4c; --down: #d0453b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #11161c; --card: #1a212a; --text: #e8edf2; --muted: #93a0ad; --line: #2a333d;
+            --hp: #7d93ff; --amber: #f0b24f; --up: #3ac47a; --down: #ff6b60; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 14px 24px 16px; background: var(--card); border-bottom: 1px solid var(--line); border-top: 4px solid var(--hp); }
+  h1 { font-size: 20px; margin: 0; display: inline; }
+  .tag { color: var(--hp); font-size: 12px; font-weight: 700; margin-left: 8px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  select, button, input[type=date], .btn { font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; text-decoration: none; display: inline-block; }
+  select:hover, button:hover, .btn:hover, input[type=date]:hover { border-color: var(--hp); }
+  main { padding: 20px 24px 40px; max-width: 1400px; margin: 0 auto; }
+  .err { margin: 16px 24px 0; padding: 10px 14px; border-radius: 8px; background: #fde8e6; color: #8a1f17; border: 1px solid #f3b8b3; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .kpi, .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .kpi:first-child { border: 2px solid var(--hp); }
+  .kpi .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .value { font-size: 24px; font-weight: 700; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi .note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .up { color: var(--up); } .down { color: var(--down); }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; margin-bottom: 14px; }
+  .w8 { grid-column: span 8; } .w4 { grid-column: span 4; } .w6 { grid-column: span 6; }
+  @media (max-width: 1000px) { .w8, .w4, .w6 { grid-column: span 12; } }
+  .card h2 { font-size: 15px; margin: 0 0 2px; }
+  .card .hint { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .chartbox { position: relative; height: 300px; }
+  .chartbox.tall { height: 380px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+  .bar { display: inline-block; height: 5px; border-radius: 3px; background: var(--hp); margin-right: 6px; vertical-align: middle; }
+  .empty { color: var(--muted); padding: 20px 0; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>FLICO Hire Purchase Analysis</h1><span class="tag">HP</span></div>
+  <div class="sub" id="asof">Loading...</div>
+  <div class="controls">
+    <select id="scope" title="Which cluster"><option value="all">All clusters</option></select>
+    <select id="branch" title="One showroom only"><option value="">All in this cluster</option></select>
+    <select id="period" title="Period">
+      <option value="today">Today</option>
+      <option value="yesterday">Yesterday</option>
+      <option value="last7">Last 7 days</option>
+      <option value="mtd">This month</option>
+      <option value="last30">Last 30 days</option>
+      <option value="lastmonth">Last month</option>
+      <option value="last3m">Last 3 months</option>
+      <option value="last6m">Last 6 months</option>
+      <option value="ytd">This year</option>
+      <option value="last12m" selected>Last 12 months</option>
+      <option value="lastyear">Last year</option>
+      <option value="last2y">Last 2 years</option>
+      <option value="custom">Custom dates...</option>
+    </select>
+    <span id="customBox" style="display:none;gap:6px;align-items:center">
+      <input type="date" id="dFrom" title="From"> <span class="sub" style="margin:0">to</span> <input type="date" id="dTo" title="To">
+    </span>
+    <button id="refresh">Refresh</button>
+    <a class="btn" href="/">&larr; Dashboard</a>
+    <a class="btn" href="/analysis.html">Company Analysis</a>
+  </div>
+</header>
+<div id="err" class="err" hidden></div>
+<main>
+  <section class="kpis" id="kpis"></section>
+  <section class="grid">
+    <div class="card w8"><h2>HP sales by month</h2><div class="hint">Last 24 months up to the end of the chosen period. Bars = HP sales (Rs). Line = HP share of all sales (%).</div><div class="chartbox"><canvas id="cMonthly"></canvas></div></div>
+    <div class="card w4"><h2 id="yearTitle">Year against last year</h2><div class="hint">HP sales per month, Rs.</div><div class="chartbox"><canvas id="cYears"></canvas></div></div>
+  </section>
+  <section class="grid">
+    <div class="card w8"><h2>HP sales by branch</h2><div class="hint">Top 15 branches in the chosen period.</div><div class="chartbox tall"><canvas id="cBranch"></canvas></div></div>
+    <div class="card w4"><h2>HP sales by category</h2><div class="hint">Top 10 categories in the chosen period.</div><div class="chartbox tall"><canvas id="cCat"></canvas></div></div>
+  </section>
+  <section class="grid">
+    <div class="card w6"><h2>Branch details</h2><div class="hint">HP share = HP sales divided by all HP sales. HP % of branch sales = HP sales divided by all sales of that branch.</div><div class="scroll" id="tBranch"></div></div>
+    <div class="card w6"><h2>Top 15 HP items</h2><div class="hint">By sales value in the chosen period.</div><div class="scroll" id="tItems"></div></div>
+  </section>
+</main>
+
+<script src="/vendor/chart.umd.js"></script>
+<script>
+const REFRESH_MS = 60000;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const full = n => Math.round(n).toLocaleString('en-US');
+function money(n) {
+  const a = Math.abs(n);
+  if (a >= 1e9) return 'Rs. ' + (n / 1e9).toFixed(2) + 'B';
+  if (a >= 1e6) return 'Rs. ' + (n / 1e6).toFixed(2) + 'M';
+  if (a >= 1e3) return 'Rs. ' + (n / 1e3).toFixed(1) + 'K';
+  return 'Rs. ' + Math.round(n);
+}
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+const SCOPE_KEY = 'flico.scope', BRANCH_KEY = 'flico.branch';
+let allBranches = [], charts = {}, loading = false, pending = false;
+
+function getRange(kind) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const d = n => { const x = new Date(t); x.setDate(x.getDate() + n); return x; };
+  const y = t.getFullYear(), m = t.getMonth();
+  switch (kind) {
+    case 'today': return [t, t];
+    case 'yesterday': return [d(-1), d(-1)];
+    case 'last7': return [d(-6), t];
+    case 'last30': return [d(-29), t];
+    case 'lastmonth': return [new Date(y, m - 1, 1), new Date(y, m, 0)];
+    case 'last3m': return [new Date(y, m - 2, 1), t];
+    case 'last6m': return [new Date(y, m - 5, 1), t];
+    case 'ytd': return [new Date(y, 0, 1), t];
+    case 'last12m': return [new Date(y, m - 11, 1), t];
+    case 'lastyear': return [new Date(y - 1, 0, 1), new Date(y - 1, 11, 31)];
+    case 'last2y': return [new Date(y - 2, m, t.getDate() + 1), t];
+    case 'custom': {
+      const f = $('dFrom').value, e = $('dTo').value;
+      const pd = v => { const [yy, mm, dd] = v.split('-').map(Number); return new Date(yy, mm - 1, dd); };
+      const from = f ? pd(f) : new Date(y, m, 1), to = e ? pd(e) : t;
+      return from <= to ? [from, to] : [to, from];
+    }
+    default: return [new Date(y, m, 1), t];
+  }
+}
+
+function fillBranches(keep) {
+  const sc = $('scope').value;
+  const list = allBranches.filter(b => sc === 'all' || sc === 'cl:' + b.cl).sort((a, b) => a.name.localeCompare(b.name));
+  $('branch').innerHTML = '<option value="">All in this cluster (' + list.length + ')</option>' +
+    list.map(b => '<option value="' + esc(b.bc) + '">' + esc(b.name) + '</option>').join('');
+  $('branch').value = list.some(b => b.bc === keep) ? keep : '';
+}
+async function initScope() {
+  try {
+    const meta = await (await fetch('/api/meta')).json();
+    const sel = $('scope');
+    sel.innerHTML = '<option value="all">All clusters</option>' +
+      meta.clusters.map(c => '<option value="cl:' + esc(c.id) + '">' + esc(c.name) + ' (' + c.count + ')</option>').join('');
+    const values = [...sel.options].map(o => o.value);
+    const want = store.get(SCOPE_KEY);
+    sel.value = values.includes(want) ? want : 'all';
+    allBranches = meta.branches || [];
+    fillBranches(store.get(BRANCH_KEY));
+  } catch (e) { /* keep "All clusters" */ }
+}
+
+function toggleCustom() {
+  const on = $('period').value === 'custom';
+  $('customBox').style.display = on ? 'inline-flex' : 'none';
+  if (on && !$('dTo').value) {
+    const t = new Date();
+    $('dFrom').value = ymd(new Date(t.getFullYear(), t.getMonth(), 1)); $('dTo').value = ymd(t);
+  }
+  $('dTo').max = ymd(new Date());
+}
+
+function chg(v, suffix) {
+  if (v === null || v === undefined || !isFinite(v)) return '<span>no previous data</span>';
+  const up = v >= 0;
+  return '<span class="' + (up ? 'up' : 'down') + '">' + (up ? '&#9650;' : '&#9660;') + ' ' + Math.abs(v).toFixed(1) + (suffix || '%') + '</span> vs previous period';
+}
+function upsert(id, cfg) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart($(id), cfg);
+}
+const moneyAxis = { ticks: { callback: v => money(v) } };
+const tip = { callbacks: { label: c => (c.dataset.label ? c.dataset.label + ': ' : '') + (c.dataset.yAxisID === 'y2' ? c.parsed.y.toFixed(1) + '%' : money(c.parsed.x !== undefined && c.chart.options.indexAxis === 'y' ? c.parsed.x : c.parsed.y)) } };
+
+function render(D) {
+  Chart.defaults.color = css('--muted');
+  Chart.defaults.borderColor = css('--line');
+  const k = D.kpi;
+  $('asof').textContent = D.scopeLabel + ' | Period ' + D.range.from + ' to ' + D.range.to + ' | Compared with ' + D.previous.from + ' to ' + D.previous.to + ' | Updated ' + new Date(D.updated).toLocaleTimeString();
+  const cards = [
+    ['HP sales', money(k.hp), chg(k.hpChange)],
+    ['HP bills', full(k.bills), chg(k.billsChange)],
+    ['Average HP bill', money(k.avg), chg(k.avgChange)],
+    ['HP share of all sales', k.share.toFixed(1) + '%', chg(k.sharePts, ' pts')],
+    ['Top HP branch', k.topBranch ? esc(k.topBranch.name) : '-', k.topBranch ? money(k.topBranch.hp) : 'no HP sales'],
+    ['Best month (24 M)', esc(k.bestMonth.label), money(k.bestMonth.hp)],
+  ];
+  $('kpis').innerHTML = cards.map(c => '<div class="kpi"><div class="label">' + c[0] + '</div><div class="value">' + c[1] + '</div><div class="note">' + c[2] + '</div></div>').join('');
+
+  upsert('cMonthly', {
+    data: {
+      labels: D.monthly.map(m => m.label),
+      datasets: [
+        { type: 'line', label: 'HP share of sales (%)', data: D.monthly.map(m => m.share), borderColor: css('--amber'), backgroundColor: css('--amber'), yAxisID: 'y2', tension: .25, pointRadius: 3 },
+        { type: 'bar', label: 'HP sales', data: D.monthly.map(m => m.hp), backgroundColor: css('--hp'), yAxisID: 'y' },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: { y: { beginAtZero: true, ...moneyAxis }, y2: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } },
+      plugins: { tooltip: tip },
+    },
+  });
+
+  const Y = D.years;
+  $('yearTitle').textContent = Y.year + ' against ' + Y.prevYear;
+  upsert('cYears', {
+    type: 'line',
+    data: {
+      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+      datasets: [
+        { label: String(Y.prevYear), data: Y.previous, borderColor: css('--amber'), backgroundColor: css('--amber'), tension: .25 },
+        { label: String(Y.year), data: Y.current, borderColor: css('--hp'), backgroundColor: css('--hp'), tension: .25 },
+      ],
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ...moneyAxis } }, plugins: { tooltip: tip } },
+  });
+
+  const top = D.branches.slice(0, 15);
+  upsert('cBranch', {
+    type: 'bar',
+    data: { labels: top.map(b => b.name), datasets: [{ label: 'HP sales', data: top.map(b => b.hp), backgroundColor: css('--hp') }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ...moneyAxis } }, plugins: { legend: { display: false }, tooltip: tip } },
+  });
+  upsert('cCat', {
+    type: 'bar',
+    data: { labels: D.categories.map(c => c.name), datasets: [{ label: 'HP sales', data: D.categories.map(c => c.amount), backgroundColor: css('--hp') }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ...moneyAxis } }, plugins: { legend: { display: false }, tooltip: tip } },
+  });
+
+  const cell = v => v === null || v === undefined || !isFinite(v) ? '-' : '<span class="' + (v >= 0 ? 'up' : 'down') + '">' + (v >= 0 ? '&#9650;' : '&#9660;') + ' ' + Math.abs(v).toFixed(1) + '%</span>';
+  $('tBranch').innerHTML = D.branches.length
+    ? '<table><thead><tr><th>Branch</th><th>HP sales</th><th>Share of HP</th><th>HP % of branch sales</th><th>Bills</th><th>Avg bill</th><th>vs previous</th></tr></thead><tbody>' +
+      D.branches.map(b => '<tr><td>' + esc(b.name) + '</td><td>' + full(b.hp) + '</td><td><span class="bar" style="width:' + Math.max(2, Math.round(b.share / 2)) + 'px"></span>' + b.share.toFixed(1) + '%</td><td>' + b.ofBranch.toFixed(1) + '%</td><td>' + full(b.bills) + '</td><td>' + full(b.avg) + '</td><td>' + cell(b.change) + '</td></tr>').join('') + '</tbody></table>'
+    : '<div class="empty">No hire purchase sales in this period.</div>';
+  $('tItems').innerHTML = D.items.length
+    ? '<table><thead><tr><th>Item</th><th>Category</th><th>Qty</th><th>HP sales</th></tr></thead><tbody>' +
+      D.items.map(i => '<tr><td>' + esc(i.name) + '</td><td>' + esc(i.cat) + '</td><td>' + full(i.qty) + '</td><td>' + full(i.amount) + '</td></tr>').join('') + '</tbody></table>'
+    : '<div class="empty">No items in this period.</div>';
+}
+
+async function load() {
+  if (loading) { pending = true; return; }
+  loading = true;
+  try {
+    const [f, t] = getRange($('period').value);
+    const scope = $('branch').value ? 'br:' + $('branch').value : $('scope').value;
+    const res = await fetch('/api/hp?' + new URLSearchParams({ scope, from: ymd(f), to: ymd(t) }));
+    const D = await res.json();
+    if (!res.ok || D.error) throw new Error(D.error || 'Request failed');
+    $('err').hidden = true;
+    render(D);
+  } catch (e) {
+    $('err').hidden = false; $('err').textContent = 'Could not load Hire Purchase data: ' + e.message;
+  } finally {
+    loading = false;
+    if (pending) { pending = false; load(); }
+  }
+}
+
+$('period').addEventListener('change', () => { toggleCustom(); load(); });
+$('dFrom').addEventListener('change', load);
+$('dTo').addEventListener('change', load);
+$('scope').addEventListener('change', () => { store.set(SCOPE_KEY, $('scope').value); store.set(BRANCH_KEY, ''); fillBranches(''); load(); });
+$('branch').addEventListener('change', () => { store.set(BRANCH_KEY, $('branch').value); load(); });
+$('refresh').addEventListener('click', load);
+initScope().then(() => { load(); setInterval(load, REFRESH_MS); });
+</script>
+</body>
+</html>

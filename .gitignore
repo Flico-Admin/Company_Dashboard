@@ -1,0 +1,13 @@
+node_modules
+.env
+_work
+backup-*/
+backup-analysis-*/
+*.bak*
+*.log
+*.txt
+import-state.json
+fix-index.js
+patch-hp.js
+flico-analysis-update*/
+*.zip

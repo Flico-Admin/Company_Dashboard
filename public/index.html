@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLICO Performance Dashboard</title>
+<style>
+  :root {
+    --bg: #f4f6f9; --card: #ffffff; --text: #1d2733; --muted: #6b7785; --line: #e3e8ee;
+    --cash: #1f9d8a; --credit: #e9a23b; --hp: #4f6bed; --up: #1a8f4c; --down: #d0453b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #11161c; --card: #1a212a; --text: #e8edf2; --muted: #93a0ad; --line: #2a333d;
+            --cash: #36c2ad; --credit: #f0b24f; --hp: #7d93ff; --up: #3ac47a; --down: #ff6b60; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px 24px; background: var(--card); border-bottom: 1px solid var(--line); }
+  h1 { font-size: 20px; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  select, button, input[type=date] { font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+  button:hover, select:hover, input[type=date]:hover { border-color: var(--hp); }
+  .btn-link { font: inherit; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--hp); background: var(--hp); color: #fff; text-decoration: none; display: inline-block; }
+  .btn-link:hover { opacity: .9; }
+  main { padding: 20px 24px 40px; max-width: 1400px; margin: 0 auto; }
+  .err { margin: 16px 24px 0; padding: 10px 14px; border-radius: 8px; background: #fde8e6; color: #8a1f17; border: 1px solid #f3b8b3; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .kpi, .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .kpi .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .value { font-size: 23px; font-weight: 650; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi .note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .up { color: var(--up); } .down { color: var(--down); }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+  .w8 { grid-column: span 8; } .w4 { grid-column: span 4; } .w6 { grid-column: span 6; } .w12 { grid-column: span 12; }
+  @media (max-width: 1000px) { .w8, .w4, .w6 { grid-column: span 12; } }
+  .card h2 { font-size: 15px; margin: 0 0 10px; }
+  .chartbox { position: relative; height: 300px; }
+  .chartbox.tall { height: 420px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+  .empty { color: var(--muted); padding: 20px 0; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>FLICO Performance Dashboard</h1>
+    <div class="sub" id="asof">Loading...</div>
+  </div>
+  <div class="controls">
+    <select id="scope" title="Which cluster to show">
+      <option value="showrooms">Showrooms</option>
+      <option value="all">All clusters</option>
+    </select>
+    <select id="branch" title="Show one showroom only">
+      <option value="">All showrooms</option>
+    </select>
+    <select id="period" title="Period">
+      <option value="today">Today</option>
+      <option value="yesterday">Yesterday</option>
+      <option value="last7">Last 7 days</option>
+      <option value="mtd" selected>This month</option>
+      <option value="last30">Last 30 days</option>
+      <option value="lastmonth">Last month</option>
+      <option value="last3m">Last 3 months</option>
+      <option value="last6m">Last 6 months</option>
+      <option value="ytd">This year</option>
+      <option value="last12m">Last 12 months</option>
+      <option value="lastyear">Last year</option>
+      <option value="last2y">Last 2 years</option>
+      <option value="custom">Custom dates...</option>
+    </select>
+    <span id="customBox" hidden style="display:none;gap:6px;align-items:center">
+      <input type="date" id="dFrom" title="From"> <span class="sub">to</span> <input type="date" id="dTo" title="To">
+    </span>
+    <button id="refresh">Refresh</button>
+    <a class="btn-link" href="/analysis.html" title="Sales comparison, returns, categories and stock health">Company Analysis</a>
+    <a class="btn-link" href="/hp.html" title="Hire purchase sales, share, branches and items">Hire Purchase</a>
+  </div>
+</header>
+
+<div id="err" class="err" hidden></div>
+
+<main>
+  <section class="kpis" id="kpis"></section>
+
+  <section class="grid">
+    <div class="card w8"><h2 id="trendTitle">Sales trend</h2><div class="chartbox"><canvas id="cTrend"></canvas></div></div>
+    <div class="card w4"><h2>Sales by payment type</h2><div class="chartbox"><canvas id="cSplit"></canvas></div></div>
+
+    <div class="card w8"><h2>Sales by branch</h2><div class="chartbox tall"><canvas id="cBranch"></canvas></div></div>
+    <div class="card w4"><h2>Stock value by branch</h2><div class="chartbox tall"><canvas id="cStock"></canvas></div></div>
+
+    <div class="card w6"><h2>Top 10 items (by sales value)</h2><div class="scroll" id="topItems"></div></div>
+    <div class="card w6"><h2>Branch details</h2><div class="scroll" id="branchTable"></div></div>
+  </section>
+</main>
+
+<script src="/vendor/chart.umd.js"></script>
+<script>
+const REFRESH_MS = 60000; // auto refresh every 60 seconds
+const charts = {};
+let loading = false, pending = false;
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const full = n => Math.round(n).toLocaleString('en-US');
+function money(n) {
+  const a = Math.abs(n);
+  if (a >= 1e9) return 'Rs. ' + (n / 1e9).toFixed(2) + 'B';
+  if (a >= 1e6) return 'Rs. ' + (n / 1e6).toFixed(2) + 'M';
+  if (a >= 1e3) return 'Rs. ' + (n / 1e3).toFixed(1) + 'K';
+  return 'Rs. ' + Math.round(n);
+}
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function getRange(kind) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const d = (n) => { const x = new Date(t); x.setDate(x.getDate() + n); return x; };
+  const y = t.getFullYear(), m = t.getMonth();
+  switch (kind) {
+    case 'today': return [t, t];
+    case 'yesterday': return [d(-1), d(-1)];
+    case 'last7': return [d(-6), t];
+    case 'last30': return [d(-29), t];
+    case 'lastmonth': return [new Date(y, m - 1, 1), new Date(y, m, 0)];
+    case 'last3m': return [new Date(y, m - 2, 1), t];      // this month + the 2 months before it
+    case 'last6m': return [new Date(y, m - 5, 1), t];
+    case 'ytd': return [new Date(y, 0, 1), t];
+    case 'last12m': return [new Date(y, m - 11, 1), t];
+    case 'lastyear': return [new Date(y - 1, 0, 1), new Date(y - 1, 11, 31)];
+    case 'last2y': return [new Date(y - 2, m, t.getDate() + 1), t]; // exactly the last 2 years
+    case 'custom': {
+      const f = $('dFrom').value, e = $('dTo').value;
+      const pd = v => { const [yy, mm, dd] = v.split('-').map(Number); return new Date(yy, mm - 1, dd); };
+      const from = f ? pd(f) : new Date(y, m, 1), to = e ? pd(e) : t;
+      return from <= to ? [from, to] : [to, from];
+    }
+    default: return [new Date(y, m, 1), t]; // this month
+  }
+}
+
+async function get(path, params) {
+  const res = await fetch(path + '?' + new URLSearchParams(params));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ('Request failed: ' + res.status));
+  return data;
+}
+
+function delta(cur, prev) {
+  if (!prev) return '<span class="note">no earlier data</span>';
+  const p = (cur - prev) / prev * 100;
+  const cls = p >= 0 ? 'up' : 'down';
+  return `<span class="${cls}">${p >= 0 ? '&#9650;' : '&#9660;'} ${Math.abs(p).toFixed(1)}%</span> <span class="note">vs previous period</span>`;
+}
+
+// ---------- charts ----------
+function upsert(id, config) {
+  Chart.defaults.color = css('--muted');
+  Chart.defaults.borderColor = css('--line');
+  if (charts[id]) {
+    charts[id].data = config.data;
+    charts[id].options = config.options;
+    charts[id].update('none');
+  } else {
+    charts[id] = new Chart($(id), config);
+  }
+}
+const moneyAxis = { ticks: { callback: v => money(v) } };
+const tip = { callbacks: { label: c => ` ${c.dataset.label || c.label}: Rs. ${full(c.parsed.y ?? c.parsed.x ?? c.parsed)}` } };
+
+function renderKpis(s, branches) {
+  const c = s.current, p = s.previous;
+  const avg = c.bills ? c.total / c.bills : 0, pavg = p.bills ? p.total / p.bills : 0;
+  const top = branches.find(b => b.total > 0);
+  $('kpis').innerHTML = `
+    <div class="kpi"><div class="label">Total sales</div><div class="value">${money(c.total)}</div><div class="note">${delta(c.total, p.total)}</div></div>
+    <div class="kpi"><div class="label">Bills</div><div class="value">${full(c.bills)}</div><div class="note">${delta(c.bills, p.bills)}</div></div>
+    <div class="kpi"><div class="label">Average bill</div><div class="value">${money(avg)}</div><div class="note">${delta(avg, pavg)}</div></div>
+    <div class="kpi"><div class="label">Top branch</div><div class="value">${top ? esc(top.name) : '-'}</div><div class="note">${top ? money(top.total) : 'no sales in this period'}</div></div>
+    <div class="kpi"><div class="label">${esc(s.stock.scopeLabel)} stock value</div><div class="value">${money(s.stock.scopeValue)}</div><div class="note">${full(s.stock.scopeQty)} units (at purchase price)</div></div>
+    <div class="kpi"><div class="label">Warehouse stock value</div><div class="value">${money(s.stock.warehouseValue)}</div><div class="note">${full(s.stock.warehouseQty)} units (head office)</div></div>`;
+}
+
+// long periods are grouped so the chart stays readable: up to 45 days daily, up to 200 days weekly, longer monthly
+function groupTrend(days) {
+  const n = days.length;
+  if (n <= 45) return days.map(d => ({ label: d.date.slice(5), cash: d.cash, credit: d.credit, hp: d.hp }));
+  const weekly = n <= 200;
+  const keyOf = date => {
+    if (!weekly) return date.slice(0, 7);
+    const [y, m, dd] = date.split('-').map(Number);
+    const x = new Date(y, m - 1, dd); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); // Monday of that week
+    return ymd(x);
+  };
+  const map = new Map();
+  for (const d of days) {
+    const k = keyOf(d.date);
+    const o = map.get(k) || { label: weekly ? 'wk ' + k.slice(5) : k, cash: 0, credit: 0, hp: 0 };
+    o.cash += d.cash; o.credit += d.credit; o.hp += d.hp;
+    map.set(k, o);
+  }
+  return [...map.values()];
+}
+
+function renderTrend(t) {
+  const g = groupTrend(t.days);
+  const labels = g.map(x => x.label);
+  const ds = (key, label, color) => ({ label, data: g.map(d => d[key]), backgroundColor: color, stack: 's' });
+  upsert('cTrend', {
+    type: 'bar',
+    data: { labels, datasets: [ds('cash', 'Cash', css('--cash')), ds('credit', 'Credit', css('--credit')), ds('hp', 'Hire purchase', css('--hp'))] },
+    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, ...moneyAxis } }, plugins: { tooltip: tip } },
+  });
+}
+
+function renderSplit(s) {
+  const b = s.current.byType;
+  upsert('cSplit', {
+    type: 'doughnut',
+    data: { labels: ['Cash', 'Credit', 'Hire purchase'], datasets: [{ data: [b.cash, b.credit, b.hp], backgroundColor: [css('--cash'), css('--credit'), css('--hp')], borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '62%',
+      plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => ` ${c.label}: Rs. ${full(c.parsed)}` } } } },
+  });
+}
+
+function renderBranch(b) {
+  const list = b.branches;
+  const ds = (key, label, color) => ({ label, data: list.map(x => x[key]), backgroundColor: color, stack: 's' });
+  upsert('cBranch', {
+    type: 'bar',
+    data: { labels: list.map(x => x.name), datasets: [ds('cash', 'Cash', css('--cash')), ds('credit', 'Credit', css('--credit')), ds('hp', 'Hire purchase', css('--hp'))] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      scales: { x: { stacked: true, ...moneyAxis }, y: { stacked: true } },
+      plugins: { tooltip: { callbacks: { label: c => ` ${c.dataset.label}: Rs. ${full(c.parsed.x)}` } } } },
+  });
+}
+
+function renderStock(st) {
+  const list = st.branches;
+  upsert('cStock', {
+    type: 'bar',
+    data: { labels: list.map(x => x.name), datasets: [{ label: 'Stock value', data: list.map(x => x.value), backgroundColor: css('--hp') }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      scales: { x: moneyAxis }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Rs. ${full(c.parsed.x)}` } } } },
+  });
+}
+
+function renderTables(top, b, stock) {
+  $('topItems').innerHTML = top.items.length
+    ? `<table><thead><tr><th>Item</th><th>Qty</th><th>Sales</th></tr></thead><tbody>${
+        top.items.map(i => `<tr><td>${esc(i.description)}</td><td>${full(i.qty)}</td><td>${full(i.amount)}</td></tr>`).join('')}</tbody></table>`
+    : '<div class="empty">No sales in this period</div>';
+
+  const stockMap = new Map(stock.branches.map(x => [x.bc, x]));
+  const grand = b.branches.reduce((a, x) => a + x.total, 0);
+  $('branchTable').innerHTML = `<table><thead><tr><th>Branch</th><th>Sales</th><th>Share</th><th>Bills</th><th>Stock value</th></tr></thead><tbody>${
+    b.branches.map(x => `<tr><td>${esc(x.name)}</td><td>${full(x.total)}</td><td>${grand ? (x.total / grand * 100).toFixed(1) + '%' : '-'}</td><td>${full(x.bills)}</td><td>${full((stockMap.get(x.bc) || {}).value || 0)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+// ---------- load ----------
+async function load() {
+  if (loading) { pending = true; return; } // run again right after the current load
+  loading = true;
+  const [f, t] = getRange($('period').value);
+  const p = { from: ymd(f), to: ymd(t), scope: $('branch').value ? 'br:' + $('branch').value : $('scope').value };
+  try {
+    const [meta, summary, byBranch, trend, stock, top] = await Promise.all([
+      get('/api/meta', {}), get('/api/summary', p), get('/api/by-branch', p),
+      get('/api/trend', p), get('/api/stock', { scope: p.scope }), get('/api/top-items', { ...p, limit: 10 }),
+    ]);
+    $('err').hidden = true;
+    $('asof').textContent = `Period ${summary.range.from} to ${summary.range.to}  |  Latest sales data: ${meta.latestSalesDate}  |  Backup: ${meta.backup && meta.backup.lastFile ? meta.backup.lastFile.slice(0, 19).replace(/-(\d\d)-(\d\d)$/, ':$1:$2') : 'n/a'}${meta.backup && meta.backup.status === 'error' ? ' (import failed)' : ''}  |  Updated ${new Date().toLocaleTimeString()}`;
+    renderKpis(summary, byBranch.branches);
+    renderTrend(trend);
+    renderSplit(summary);
+    renderBranch(byBranch);
+    renderStock(stock);
+    renderTables(top, byBranch, stock);
+  } catch (e) {
+    $('err').textContent = 'Could not load data: ' + e.message;
+    $('err').hidden = false;
+  } finally {
+    loading = false;
+    if (pending) { pending = false; load(); }
+  }
+}
+
+// the cluster you pick is remembered, and the Company Analysis page uses the same choice
+const SCOPE_KEY = 'flico.scope', BRANCH_KEY = 'flico.branch';
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+let allBranches = [];
+
+// the showroom list follows the chosen cluster
+function fillBranches(keep) {
+  const sc = $('scope').value;
+  const list = allBranches.filter(b => sc === 'all' || sc === 'showrooms' ? (sc === 'all' || b.cl === 'C3') : sc === 'cl:' + b.cl)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  $('branch').innerHTML = '<option value="">All in this cluster (' + list.length + ')</option>' +
+    list.map(b => `<option value="${esc(b.bc)}">${esc(b.name)}</option>`).join('');
+  $('branch').value = list.some(b => b.bc === keep) ? keep : '';
+}
+
+async function initScope() {
+  try {
+    const meta = await get('/api/meta', {});
+    const sel = $('scope');
+    sel.innerHTML = '<option value="all">All clusters</option>' +
+      meta.clusters.map(c => `<option value="cl:${esc(c.id)}">${esc(c.name)} (${c.count})</option>`).join('');
+    const values = [...sel.options].map(o => o.value);
+    const want = store.get(SCOPE_KEY);
+    sel.value = values.includes(want) ? want : (values.includes('cl:C3') ? 'cl:C3' : 'all');
+    allBranches = meta.branches || [];
+    fillBranches(store.get(BRANCH_KEY));
+  } catch (e) { /* keep the basic options, the dashboard still works */ }
+}
+
+function toggleCustom() {
+  const on = $('period').value === 'custom';
+  $('customBox').hidden = !on; $('customBox').style.display = on ? 'inline-flex' : 'none';
+  if (on && !$('dTo').value) {
+    const t = new Date(), f = new Date(t.getFullYear(), t.getMonth(), 1);
+    $('dFrom').value = ymd(f); $('dTo').value = ymd(t);
+  }
+  $('dTo').max = ymd(new Date());
+}
+
+$('period').addEventListener('change', () => { toggleCustom(); load(); });
+$('dFrom').addEventListener('change', load);
+$('dTo').addEventListener('change', load);
+$('scope').addEventListener('change', () => { store.set(SCOPE_KEY, $('scope').value); store.set(BRANCH_KEY, ''); fillBranches(''); load(); });
+$('branch').addEventListener('change', () => { store.set(BRANCH_KEY, $('branch').value); load(); });
+$('refresh').addEventListener('click', load);
+initScope().then(() => { load(); setInterval(load, REFRESH_MS); });
+</script>
+</body>
+</html>

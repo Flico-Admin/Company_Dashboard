@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Future Life Company Analysis</title>
+<style>
+
+/* Layout: verdict block first, then charts in a two-column grid, then tables. Amounts are in Rs millions (Rs M). */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --ink: #14202b;
+  --muted: #566574;
+  --line: #dbe2e9;
+  --grid: #e8edf2;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --good: #0c7a3d;
+  --good-bg: #e3f4ea;
+  --bad: #b3261e;
+  --bad-bg: #fbe6e4;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1318; --surface: #161c23; --ink: #e7ecf1; --muted: #9aa8b6; --line: #27313b; --grid: #222b34;
+    --s1: #3987e5; --s2: #d95926; --good: #5fd08e; --good-bg: #12301f; --bad: #ff8a80; --bad-bg: #3a1a18;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1318; --surface: #161c23; --ink: #e7ecf1; --muted: #9aa8b6; --line: #27313b; --grid: #222b34;
+  --s1: #3987e5; --s2: #d95926; --good: #5fd08e; --good-bg: #12301f; --bad: #ff8a80; --bad-bg: #3a1a18;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 14px; line-height: 1.5;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  font-variant-numeric: tabular-nums;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+header { display: flex; flex-direction: column; gap: 4px; }
+h1 { font-family: var(--f-display); font-size: 26px; line-height: 1.15; margin: 0; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0; }
+h2 { font-family: var(--f-display); font-size: 17px; margin: 0; font-weight: 600; text-wrap: balance; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; min-width: 0; }
+.card p.note { color: var(--muted); margin: 4px 0 0; font-size: 13px; max-width: 70ch; }
+
+.verdict { display: grid; gap: 20px; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; }
+.verdict .tag { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; width: fit-content; }
+.verdict .tag.bad { color: var(--bad); background: var(--bad-bg); }
+.verdict .tag.good { color: var(--good); background: var(--good-bg); }
+.verdict h2 { font-size: 24px; line-height: 1.2; margin: 12px 0 8px; }
+.verdict p { margin: 0 0 8px; color: var(--muted); max-width: 60ch; }
+.ind { display: flex; flex-direction: column; }
+.ind-head, .ind-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: 10px; align-items: center; padding: 9px 0; }
+.ind-head { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--line); padding-top: 0; }
+.ind-row { border-bottom: 1px solid var(--line); }
+.ind-row:last-child { border-bottom: 0; }
+.ind-row .l { font-weight: 500; }
+.num { text-align: right; }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 4px; white-space: nowrap; justify-self: end; }
+.pill.good { color: var(--good); background: var(--good-bg); }
+.pill.bad { color: var(--bad); background: var(--bad-bg); }
+
+.grid { display: grid; gap: 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid .wide { grid-column: 1 / -1; }
+.chart { position: relative; height: 300px; margin-top: 12px; }
+.chart.tall { height: 340px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; color: var(--muted); font-size: 13px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+.scroll { overflow-x: auto; margin-top: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+tr:last-child td { border-bottom: 0; }
+details summary { cursor: pointer; font-family: var(--f-display); font-weight: 600; font-size: 15px; }
+details summary:focus-visible { outline: 2px solid var(--s1); outline-offset: 3px; }
+.method { display: grid; gap: 8px; margin: 10px 0 0; padding-left: 18px; color: var(--muted); max-width: 80ch; }
+.method li { padding-left: 2px; }
+
+[hidden] { display: none !important; }
+.sec-title { font-family: var(--f-display); font-size: 20px; margin: 8px 0 0; font-weight: 700; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
+.stat .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat .v { font-family: var(--f-display); font-size: 24px; font-weight: 700; line-height: 1.2; margin-top: 2px; }
+.stat .s { color: var(--muted); font-size: 12px; margin-top: 2px; }
+td.wrapcell { white-space: normal; min-width: 220px; max-width: 420px; }
+@media (max-width: 860px) {
+  .verdict, .grid { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 22px; }
+  .verdict h2 { font-size: 21px; }
+}
+@media (max-width: 560px) {
+  .ind-head { display: none; }
+  .ind-row { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 4px; }
+  .ind-row .l { grid-column: 1 / -1; }
+  .ind-row .num { text-align: left; }
+  .ind-row .pill { justify-self: start; }
+  .ind-row .num::before { content: attr(data-k); display: block; color: var(--muted); font-size: 11px; }
+  .chart { height: 260px; }
+  .card { padding: 14px; }
+}
+@media print {
+  body { padding: 0; }
+  .card { break-inside: avoid; }
+  details { display: block; }
+}
+
+/* extra styles for the top bar and messages */
+.topbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; justify-content: space-between; }
+.topbar .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; text-decoration: none; display: inline-block; }
+.btn:hover { border-color: var(--s1); }
+.msg { padding: 12px 16px; border-radius: 8px; }
+.msg.err { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad); }
+.msg.info { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="topbar">
+      <div>
+        <h1>Future Life Company Analysis</h1>
+        <p class="sub" id="sub">Loading the analysis. This can take a few seconds...</p>
+      </div>
+      <div class="btns">
+        <select class="btn" id="scope" title="Which cluster to analyse"><option value="all">All clusters</option></select>
+        <select class="btn" id="branch" title="Analyse one showroom only"><option value="">All in this cluster</option></select>
+        <a class="btn" href="/">&larr; Back to dashboard</a>
+        <a class="btn" href="/hp.html">Hire Purchase</a>
+        <button class="btn" id="reload" type="button">Refresh</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="msg err" id="err" hidden></div>
+
+  <div id="content" hidden>
+    <div style="display:flex;flex-direction:column;gap:20px">
+    <section class="card verdict" aria-labelledby="vh">
+      <div id="vbox">
+        <span class="tag bad" id="vtag"></span>
+        <h2 id="vh"></h2>
+        <p id="vtext"></p>
+      </div>
+      <div class="ind" id="ind" role="table" aria-label="Same months compared across two years"></div>
+    </section>
+
+    <div class="grid">
+      <section class="card wide">
+        <h2 id="h-monthly">Monthly net sales, head office and showrooms</h2>
+        <p class="note" id="note-monthly"></p>
+        <div class="chart tall"><canvas id="c-monthly" role="img" aria-label="Stacked bar chart of monthly net sales split into head office and the other branches"></canvas></div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>Head office (HOF)</span><span><i style="background:var(--s2)"></i><b id="lg-other" style="font-weight:400">Showrooms</b></span></div>
+      </section>
+
+      <section class="card">
+        <h2 id="h-yoy"></h2>
+        <p class="note" id="note-yoy"></p>
+        <div class="chart"><canvas id="c-yoy" role="img" aria-label="Line chart comparing monthly net sales in the two years"></canvas></div>
+        <div class="legend"><span><i style="background:var(--s1)"></i><b id="lg-a" style="font-weight:400"></b></span><span><i style="background:var(--s2)"></i><b id="lg-b" style="font-weight:400"></b></span></div>
+      </section>
+
+      <section class="card" id="card-ret">
+        <h2>Returns as a share of sales</h2>
+        <p class="note">Return value divided by sales value, per month.</p>
+        <div class="chart"><canvas id="c-ret" role="img" aria-label="Line chart of the monthly returns percentage"></canvas></div>
+      </section>
+
+      <section class="card">
+        <h2 id="h-cat"></h2>
+        <p class="note">Top 10 categories by sales in the earlier year, Rs millions.</p>
+        <div class="scroll"><table id="t-cat"></table></div>
+      </section>
+
+      <section class="card">
+        <h2 id="h-loc"></h2>
+        <p class="note" id="note-loc"></p>
+        <div class="scroll"><table id="t-loc"></table></div>
+      </section>
+
+      <section class="card wide" id="card-rcat">
+        <h2 id="h-rcat"></h2>
+        <p class="note">Value of goods returned in Rs millions, and the return rate (returns as a share of sales). Top 8 categories by returns.</p>
+        <div class="scroll"><table id="t-rcat"></table></div>
+      </section>
+    </div>
+
+    <div id="stock" hidden>
+      <h2 class="sec-title">Stock</h2>
+      <p class="sub" id="stock-sub" style="margin:2px 0 16px"></p>
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <section class="card"><div class="stats" id="st-stats"></div></section>
+        <div class="grid">
+          <section class="card">
+            <h2>Stock and selling speed by category</h2>
+            <p class="note">Top 12 categories by stock value. Cover is stock units divided by units sold per month over the last 90 days.</p>
+            <div class="scroll"><table id="t-scat"></table></div>
+          </section>
+          <section class="card">
+            <h2>Stock by location</h2>
+            <p class="note" id="note-sloc"></p>
+            <div class="scroll"><table id="t-sloc"></table></div>
+          </section>
+          <section class="card wide">
+            <h2>Stock with no sales in the last 180 days</h2>
+            <p class="note" id="note-dead">Largest 15 by value. Value is blank where there is no usable purchase price.</p>
+            <div class="scroll"><table id="t-dead"></table></div>
+          </section>
+          <section class="card wide">
+            <h2>Selling fast with under one month of stock</h2>
+            <p class="note">Items with at least 20 units sold in the last 90 days and stock below one month of sales.</p>
+            <div class="scroll"><table id="t-low"></table></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <section class="card">
+      <details>
+        <summary>Monthly numbers</summary>
+        <div class="scroll"><table id="t-month"></table></div>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>How to read this</h2>
+      <ul class="method" id="method"></ul>
+    </section>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/chart.umd.js"></script>
+<script>
+const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const lab = m => MN[+m.slice(5) - 1] + " " + m.slice(2, 4);
+const fullName = m => FULL[+m.slice(5) - 1] + " " + m.slice(0, 4);
+const f0 = v => Math.round(v).toLocaleString("en-US");
+const f1 = v => v.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const pct = (a, b) => (b / a - 1) * 100;
+const sgn = v => (v > 0 ? "+" : v < 0 ? "\u2212" : "") + f1(Math.abs(v));
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+let D = null, charts = [];
+let OL = "Showrooms";   // name of the non head-office part (the chosen cluster, or "Other branches")
+
+function pill(good, text) {
+  return '<span class="pill ' + (good ? "good" : "bad") + '">' + (good ? "\u25B2 " : "\u25BC ") + text + " \u00B7 " + (good ? "Positive" : "Negative") + "</span>";
+}
+const chip = c => c == null ? '<span class="pill good">\u25B2 New</span>' : '<span class="pill ' + (c >= 0 ? "good" : "bad") + '">' + (c >= 0 ? "\u25B2 " : "\u25BC ") + sgn(c) + "%</span>";
+
+function renderPage() {
+  OL = D.other_label || "Showrooms";
+  $("sub").textContent = (D.scope_label ? D.scope_label + " \u00B7 " : "") + "Sales from " + D.start_label + " to " + D.end_label + " \u00B7 " + D.rows.toLocaleString("en-US") +
+    " invoice lines \u00B7 Rs " + f0(D.total) + "M net sales in total \u00B7 calculated from the latest backup" + backupText();
+
+  const A = D.a, B = D.b, hasRet = D.returns_available !== false;
+  const rows = [
+    { l: "Net sales (Rs M)", s: "total net sales", a: A.net, b: B.net, fa: f0(A.net), fb: f0(B.net), up: true },
+    D.q ? { l: D.qlabel + " sales (Rs M)", s: "sales in " + D.qlabel, a: D.q.a, b: D.q.b, fa: f0(D.q.a), fb: f0(D.q.b), up: true } : null,
+    { l: "Head office sales (Rs M)", s: "head office sales", a: A.hof, b: B.hof, fa: f0(A.hof), fb: f0(B.hof), up: true },
+    { l: OL + " sales (Rs M)", s: OL.toLowerCase() + " sales", a: A.shw, b: B.shw, fa: f0(A.shw), fb: f0(B.shw), up: true },
+    { l: "Invoices", s: "the number of invoices", a: A.inv, b: B.inv, fa: f0(A.inv), fb: f0(B.inv), up: true },
+    { l: "Average invoice (Rs 000)", s: "the average invoice value", a: A.avg, b: B.avg, fa: f0(A.avg), fb: f0(B.avg), up: true },
+    hasRet ? { l: "Returns share of sales", s: "the returns share", a: A.ret, b: B.ret, fa: f1(A.ret) + "%", fb: f1(B.ret) + "%", up: false, pts: true } : null,
+    hasRet ? { l: "Returns (Rs M)", s: "the value of returns", a: A.retv, b: B.retv, fa: f1(A.retv), fb: f1(B.retv), up: false } : null
+  ].filter(Boolean);
+
+  let html = '<div class="ind-head" role="row"><span>' + D.period + '</span><span class="num">' + D.yA + '</span><span class="num">' + D.yB + '</span><span class="num">Change</span></div>';
+  const goodList = [], badList = [];
+  rows.forEach(r => {
+    const d = r.pts ? r.b - r.a : pct(r.a, r.b);
+    const good = r.up ? d > 0 : d < 0;
+    const txt = r.pts ? sgn(d) + " pts" : sgn(d) + "%";
+    html += '<div class="ind-row" role="row"><span class="l">' + r.l + '</span><span class="num" data-k="' + D.yA + '">' + r.fa +
+      '</span><span class="num" data-k="' + D.yB + '">' + r.fb + '</span><span data-k="Change" style="justify-self:end">' + pill(good, txt) + "</span></div>";
+    const phrase = r.pts ? r.s + " went from " + r.fa + " to " + r.fb : r.s + " " + (d >= 0 ? "up " : "down ") + f1(Math.abs(d)) + "%";
+    (good ? goodList : badList).push(phrase);
+  });
+  $("ind").innerHTML = html;
+
+  const tChg = pct(A.net, B.net), up = tChg >= 0;
+  $("vtag").className = "tag " + (up ? "good" : "bad");
+  $("vtag").textContent = (up ? "\u25B2 Positive" : "\u25BC Negative") + " on total sales";
+  $("vh").textContent = "Total sales are " + (up ? "up " : "down ") + f1(Math.abs(tChg)) + "% on the same months last year";
+  $("vtext").textContent = "Net sales for " + D.period + " " + D.yB + " are Rs " + f0(B.net) + "M, against Rs " + f0(A.net) + "M in the same months of " + D.yA + ".";
+  document.querySelectorAll("#vbox .extra").forEach(n => n.remove());
+  const addP = t => { const p = document.createElement("p"); p.className = "extra"; p.textContent = t; $("vbox").appendChild(p); };
+  if (goodList.length) addP("Moving the right way: " + goodList.join("; ") + ".");
+  if (badList.length) addP("Moving the wrong way: " + badList.join("; ") + ".");
+
+  $("h-monthly").textContent = "Monthly net sales, head office and " + OL.toLowerCase();
+  $("lg-other").textContent = OL;
+  $("note-loc").textContent = "Branches with sales above Rs 1M, by sales in the later year, Rs millions. Head office is not included.";
+  $("note-monthly").textContent = "Rs millions." + (D.partial ? " " + fullName(D.partial) + " (marked *) covers only part of the month." : "");
+  $("h-yoy").textContent = D.yB + " against " + D.yA + ", month by month";
+  $("note-yoy").textContent = "Net sales in Rs millions. " + D.yB + " is shown up to " + MN[D.lastMo - 1] + ".";
+  $("lg-a").textContent = D.yA; $("lg-b").textContent = D.yB;
+  $("h-cat").textContent = "Categories, " + D.period;
+  $("h-loc").textContent = "Branches, " + D.period;
+  $("h-rcat").textContent = "Returns by category, " + D.period;
+  $("card-ret").hidden = !hasRet; $("card-rcat").hidden = !hasRet;
+
+  const tbl = (first, list) => "<tr><th>" + first + "</th><th>" + D.yA + "</th><th>" + D.yB + "</th><th>Change</th></tr>" +
+    list.map(c => "<tr><td>" + esc(c.name) + "</td><td>" + f1(c.a) + "</td><td>" + f1(c.b) + "</td><td>" + chip(c.chg) + "</td></tr>").join("");
+  $("t-cat").innerHTML = tbl("Category", D.cats);
+  $("t-loc").innerHTML = tbl("Branch", D.locs);
+  $("t-rcat").innerHTML = "<tr><th>Category</th><th>Returns " + D.yA + "</th><th>Returns " + D.yB + "</th><th>Rate " + D.yA + "</th><th>Rate " + D.yB + "</th></tr>" +
+    D.rcats.map(c => "<tr><td>" + esc(c.name) + "</td><td>" + f1(c.a) + "</td><td>" + f1(c.b) + "</td><td>" + f1(c.ra) + "%</td><td>" + f1(c.rb) + "%</td></tr>").join("");
+  $("t-month").innerHTML =
+    "<tr><th>Month</th><th>Net sales</th><th>Head office</th><th>" + esc(OL) + "</th><th>Invoices</th><th>Returns</th><th>Returns %</th></tr>" +
+    D.months.map((m, i) => "<tr><td>" + lab(m) + (m === D.partial ? " *" : "") + "</td><td>" + f1(D.net[i]) + "</td><td>" + f1(D.hof[i]) + "</td><td>" + f1(D.shw[i]) + "</td><td>" + f0(D.inv[i]) + "</td><td>" + f1(D.ret_m[i]) + "</td><td>" + D.ret_pct[i].toFixed(1) + "</td></tr>").join("");
+
+  const notes = [
+    "Net sales means sales value minus returns. Amounts are in Rs. Cancelled bills are not counted.",
+    "Positive or negative is decided by comparing " + D.period + " " + D.yB + " with " + D.period + " " + D.yA + ", the same months in both years." + (D.partial ? " " + fullName(D.partial) + " is left out of the comparison because that month is not finished." : ""),
+    "Head office means the HOF branch, and every other branch in the chosen cluster is counted under \"" + OL + "\". A branch with little or no sales in " + D.yA + " may be a new or recently active outlet.",
+    "These numbers come straight from the latest backup database. They can differ slightly from the Excel report or from the main dashboard (for example because of tax or discounts)."
+  ];
+  if (!hasRet) notes.push("No sales return tables were found in the database, so returns are not shown and net sales equal sales. See /api/analysis/schema.");
+  if (D.spikes.length) {
+    const s = D.spikes.map(x => x.name + " (Rs " + f0(x.v) + "M)").join(" and ");
+    notes.push(s + " were far above the other months, so the " + D.yA + " base is high and makes the change look bigger.");
+  }
+
+  if (D.stock) {
+    const S = D.stock;
+    $("stock").hidden = false;
+    $("stock-sub").textContent = "Stock in the system right now. It is a snapshot, so it shows stock levels and not stock movement. Sales speed comes from sales up to " + D.end_label + ".";
+    const stat = (k, v, s) => '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v + '</div><div class="s">' + s + "</div></div>";
+    $("st-stats").innerHTML =
+      stat("Units in stock", f0(S.units), S.items.toLocaleString("en-US") + " items in " + S.locations + " locations") +
+      stat("Stock value at cost", "Rs " + f1(S.value) + "M", f1(S.nocost_share) + "% of units have no usable cost price and are not valued") +
+      stat("No sales in 180 days", f0(S.dead_items) + " items", f0(S.dead_units) + " units, Rs " + f1(S.dead_value) + "M at known cost") +
+      stat("Held at head office", f1(S.hof_share) + "%", "of all units in stock");
+    const cover = c => {
+      if (c.cover == null) return "No sales";
+      const t = f1(c.cover);
+      return c.cover > 6 ? t + ' <span class="pill bad">\u25BC Slow</span>' : c.cover < 1 ? t + ' <span class="pill bad">\u25BC Low</span>' : t;
+    };
+    $("t-scat").innerHTML = "<tr><th>Category</th><th>Units</th><th>Value (Rs M)</th><th>Sold per month</th><th>Cover (months)</th></tr>" +
+      S.cats.map(c => "<tr><td>" + esc(c.name) + "</td><td>" + f0(c.units) + "</td><td>" + f1(c.val) + "</td><td>" + f0(c.rate) + "</td><td>" + cover(c) + "</td></tr>").join("");
+    $("note-sloc").textContent = "Top 12 locations by stock value, Rs millions." + (S.neg_rows ? " " + S.neg_rows + " rows with negative stock are left out." : "");
+    $("t-sloc").innerHTML = "<tr><th>Location</th><th>Units</th><th>Value (Rs M)</th></tr>" +
+      S.locs.map(c => "<tr><td>" + esc(c.name) + "</td><td>" + f0(c.units) + "</td><td>" + f1(c.val) + "</td></tr>").join("");
+    $("t-dead").innerHTML = "<tr><th>Item</th><th>Category</th><th>Units</th><th>Value (Rs M)</th><th>Last GRN</th><th>Days since GRN</th><th>Last sold</th></tr>" +
+      S.dead.map(c => '<tr><td class="wrapcell">' + esc(c.name) + "</td><td>" + esc(c.cat) + "</td><td>" + f0(c.units) + "</td><td>" + (c.val == null ? "\u2013" : f1(c.val)) + "</td><td>" + (c.grn || "\u2013") + "</td><td>" + (c.grn_days == null ? "\u2013" : f0(c.grn_days) + (c.grn_open ? "+" : "")) + "</td><td>" + (c.last || "Not in the period loaded") + "</td></tr>").join("");
+    $("note-dead").textContent = "Largest 15 by value. Value is blank where there is no usable purchase price. " +
+      (S.grn_available ? "Items received in the last 180 days (by GRN, or by the date they first appeared in stock) are not shown" + (S.dead_hidden_new ? " (" + S.dead_hidden_new + " new items left out). \"Opening stock\" = already in the system when it started (before about 10 Jun 2026), so the real age is higher than the days shown." : ".")
+                       : "GRN tables were not found, so new stock is NOT filtered out yet (see /api/analysis/schema).");
+    $("t-low").innerHTML = "<tr><th>Item</th><th>Category</th><th>Sold, last 90 days</th><th>In stock</th><th>Cover (months)</th></tr>" +
+      (S.low.length ? S.low.map(c => '<tr><td class="wrapcell">' + esc(c.name) + "</td><td>" + esc(c.cat) + "</td><td>" + f0(c.sold) + "</td><td>" + f0(c.units) + "</td><td>" + f1(c.cover) + "</td></tr>").join("") : '<tr><td colspan="5">No items match.</td></tr>');
+    notes.push("Stock value is units multiplied by the purchase price. Rows with a purchase price of Rs 1 or less are placeholders, so they are counted in units but not in value. Some higher costs may also be placeholders, so the real stock value can be higher than shown.");
+  } else {
+    $("stock").hidden = true;
+  }
+  $("method").innerHTML = notes.map(n => "<li>" + esc(n) + "</li>").join("");
+
+  $("content").hidden = false;
+  drawCharts();
+}
+
+const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function drawCharts() {
+  if (!D) return;
+  charts.forEach(c => c.destroy());
+  charts = [];
+  const c = { s1: tok("--s1"), s2: tok("--s2"), ink: tok("--ink"), muted: tok("--muted"), grid: tok("--grid"), line: tok("--line"), surface: tok("--surface") };
+  Chart.defaults.color = c.muted;
+  Chart.defaults.font.family = '"Segoe UI", system-ui, sans-serif';
+  Chart.defaults.font.size = 12;
+  const tip = { backgroundColor: c.surface, titleColor: c.ink, bodyColor: c.ink, borderColor: c.line, borderWidth: 1, padding: 10, boxPadding: 4, displayColors: true };
+  const axes = fmt => ({
+    x: { grid: { display: false }, border: { color: c.line }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 14 } },
+    y: { beginAtZero: true, grid: { color: c.grid }, border: { display: false }, ticks: { callback: fmt || (v => v.toLocaleString("en-US")) } }
+  });
+  const labels = D.months.map(m => lab(m) + (m === D.partial ? "*" : ""));
+
+  charts.push(new Chart($("c-monthly"), {
+    type: "bar",
+    data: { labels, datasets: [
+      { label: "Head office (HOF)", data: D.hof, backgroundColor: c.s1, borderColor: c.surface, borderWidth: 2, borderRadius: 3, borderSkipped: false },
+      { label: OL, data: D.shw, backgroundColor: c.s2, borderColor: c.surface, borderWidth: 2, borderRadius: 3, borderSkipped: false }
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      scales: { x: { ...axes().x, stacked: true }, y: { ...axes().y, stacked: true } },
+      plugins: { legend: { display: false }, tooltip: { ...tip, callbacks: {
+        label: i => " " + i.dataset.label + ": Rs " + f1(i.parsed.y) + "M",
+        footer: items => "Total: Rs " + f1(items.reduce((s, i) => s + i.parsed.y, 0)) + "M" } } } }
+  }));
+
+  const by = {}; D.months.forEach((m, i) => by[m] = D.net[i]);
+  const key = (y, i) => y + "-" + String(i + 1).padStart(2, "0");
+  const sA = MN.map((_, i) => by[key(D.yA, i)] ?? null);
+  const sB = MN.map((_, i) => i < D.lastMo ? (by[key(D.yB, i)] ?? null) : null);
+  const ln = (label, data, col) => ({ label, data, borderColor: col, backgroundColor: col, borderWidth: 2, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: col, pointBorderColor: c.surface, pointBorderWidth: 2, tension: 0.2, spanGaps: false });
+  charts.push(new Chart($("c-yoy"), {
+    type: "line",
+    data: { labels: MN, datasets: [ ln(String(D.yA), sA, c.s1), ln(String(D.yB), sB, c.s2) ] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      scales: axes(),
+      plugins: { legend: { display: false }, tooltip: { ...tip, callbacks: { label: i => " " + i.dataset.label + ": Rs " + f1(i.parsed.y) + "M" } } } }
+  }));
+
+  if (D.returns_available !== false) {
+    charts.push(new Chart($("c-ret"), {
+      type: "line",
+      data: { labels, datasets: [ { ...ln("Returns share", D.ret_pct, c.s1), fill: true, backgroundColor: c.s1 + "22", pointRadius: 3 } ] },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+        scales: axes(v => v + "%"),
+        plugins: { legend: { display: false }, tooltip: { ...tip, callbacks: { label: i => " Returns: " + i.parsed.y.toFixed(1) + "% of sales" } } } }
+    }));
+  }
+}
+
+let backupInfo = null;
+function backupText() {
+  if (!backupInfo || !backupInfo.lastFile) return "";
+  const f = String(backupInfo.lastFile).slice(0, 19).replace(/-(\d\d)-(\d\d)$/, ":$1:$2");
+  return " \u00B7 Backup: " + f + (backupInfo.status === "error" ? " (latest import failed)" : "") + (backupInfo.status === "importing" ? " (new backup importing...)" : "");
+}
+// every minute: if a new backup was imported, reload the analysis automatically
+async function watchBackup() {
+  try {
+    const m = await (await fetch("/api/meta")).json();
+    const b = m.backup || null;
+    const changed = backupInfo && b && b.importedAt && b.importedAt !== backupInfo.importedAt;
+    backupInfo = b;
+    if (changed) load(true); else if (D) renderPage();
+  } catch (e) {}
+}
+setInterval(watchBackup, 60000);
+let busy = false, again = null;
+async function load(refresh) {
+  if (busy) { again = !!refresh; return; }   // a new choice arrived while loading: run it right after
+  busy = true;
+  $("reload").disabled = true;
+  try {
+    const sc = $("branch").value ? "br:" + $("branch").value : $("scope").value;
+    const q = "scope=" + encodeURIComponent(sc) + (refresh ? "&refresh=1" : "");
+    const res = await fetch("/api/analysis?" + q);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ("Request failed: " + res.status));
+    D = data;
+    $("err").hidden = true;
+    renderPage();
+  } catch (e) {
+    $("err").textContent = "Could not load the analysis: " + e.message;
+    $("err").hidden = false;
+    $("sub").textContent = "The analysis could not be loaded.";
+  } finally {
+    busy = false;
+    $("reload").disabled = false;
+    if (again !== null) { const r = again; again = null; load(r); }
+  }
+}
+// cluster + showroom lists come from /api/meta; the choice is shared with the dashboard page
+const SCOPE_KEY = "flico.scope", BRANCH_KEY = "flico.branch";
+const getSaved = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const setSaved = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+let allBranches = [];
+function fillBranches(keep) {
+  const sc = $("scope").value;
+  const list = allBranches.filter(b => sc === "all" || (sc === "showrooms" ? b.cl === "C3" : sc === "cl:" + b.cl))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  $("branch").innerHTML = '<option value="">All in this cluster (' + list.length + ")</option>" +
+    list.map(b => '<option value="' + esc(b.bc) + '">' + esc(b.name) + "</option>").join("");
+  $("branch").value = list.some(b => b.bc === keep) ? keep : "";
+}
+async function initScope() {
+  try {
+    const res = await fetch("/api/meta");
+    const meta = await res.json();
+    const sel = $("scope");
+    sel.innerHTML = '<option value="all">All clusters</option>' +
+      meta.clusters.map(c => '<option value="cl:' + esc(c.id) + '">' + esc(c.name) + " (" + c.count + ")</option>").join("");
+    const values = [...sel.options].map(o => o.value);
+    const want = getSaved(SCOPE_KEY);
+    sel.value = values.includes(want) ? want : "all";
+    allBranches = meta.branches || [];
+    backupInfo = meta.backup || null;
+    fillBranches(getSaved(BRANCH_KEY));
+  } catch (e) { /* keep "All clusters" */ }
+}
+$("scope").addEventListener("change", () => { setSaved(SCOPE_KEY, $("scope").value); setSaved(BRANCH_KEY, ""); fillBranches(""); load(false); });
+$("branch").addEventListener("change", () => { setSaved(BRANCH_KEY, $("branch").value); load(false); });
+$("reload").addEventListener("click", () => load(true));
+try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawCharts); } catch (e) {}
+initScope().then(() => load(false));
+</script>
+</body>
+</html>
