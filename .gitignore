@@ -11,3 +11,4 @@ fix-index.js
 patch-hp.js
 flico-analysis-update*/
 *.zip
+patch-hp-collection.js
