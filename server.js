@@ -4,6 +4,7 @@ const path = require('path');
 const express = require('express');
 const mysql = require('mysql2/promise');
 const importer = require('./importer');
+const hpCol = require('./hp-collection'); // HP daily collection
 const hp = require('./hp'); // Hire Purchase page (/hp.html)
 const analysis = require('./analysis'); // Company Analysis page (/analysis.html)
 
@@ -248,6 +249,7 @@ app.get('/api/top-items', api(async (req) => {
 // Company Analysis: adds /api/analysis and /api/analysis/schema
 analysis.register(app, { pool, branches, scopeBranches });
 hp.register(app, { pool, branches, scopeBranches });
+hpCol.register(app, { pool, branches, scopeBranches });
 
 // ---------- static files ----------
 app.use('/vendor', express.static(path.join(__dirname, 'node_modules', 'chart.js', 'dist')));
@@ -256,5 +258,5 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.listen(Number(PORT), HOST, () => {
   console.log(`Dashboard running:  http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
   // after each new backup is loaded, drop cached results so the page shows the new data
-  importer.start({ onImported: () => { cache.clear(); branchCache.t = 0; analysis.clear(); hp.clear(); } });
+  importer.start({ onImported: () => { cache.clear(); branchCache.t = 0; analysis.clear(); hp.clear(); hpCol.clear(); } });
 });

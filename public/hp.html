@@ -280,5 +280,6 @@ $('branch').addEventListener('change', () => { store.set(BRANCH_KEY, $('branch')
 $('refresh').addEventListener('click', load);
 initScope().then(() => { load(); setInterval(load, REFRESH_MS); });
 </script>
+<script src="/hp-collection.js"></script>
 </body>
 </html>
